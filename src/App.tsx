@@ -6,6 +6,8 @@ import SkillGap from './pages/SkillGap.tsx'
 import Roadmap3D from './pages/Roadmap3D.tsx'
 import Dashboard from './pages/Dashboard.tsx'
 import ProtectedRoute from './components/ProtectedRoute.tsx'
+import Chat from './pages/Chat.tsx'
+import History from './pages/History.tsx'
 
 function App() {
   return (
@@ -26,6 +28,12 @@ function App() {
         } />
         <Route path="/roadmap" element={
           <ProtectedRoute><Roadmap3D /></ProtectedRoute>
+        } />
+        <Route path="/chat" element={
+          <ProtectedRoute><Chat /></ProtectedRoute>
+        } />
+        <Route path="/history" element={
+          <ProtectedRoute><History /></ProtectedRoute>
         } />
       </Routes>
     </BrowserRouter>
