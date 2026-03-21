@@ -54,38 +54,6 @@ const suggestions = [
   'Explain autograd simply',
 ]
 
-const mockResponses: Record<string, { text: string; mood: Mood }> = {
-  default: {
-    mood: 'talking',
-    text: "Great question! Based on your skill profile, I'd focus on PyTorch first — it unlocks MLOps and Model Deployment which are your two highest priority gaps. Want me to make a weekly study plan?",
-  },
-  plan: {
-    mood: 'happy',
-    text: "Here's your weekly PyTorch plan! ⚡\n\n**Week 1** — Tensors & Autograd\nMon-Wed: PyTorch official tutorial (1hr/day)\nThu-Fri: Fast.ai Lesson 1 (1.5hr/day)\nWeekend: Build a linear regression from scratch\n\n**Week 2** — Neural Networks\nMon-Wed: Andrej Karpathy Zero to Hero (2hr/day)\nThu-Fri: MNIST classifier project\nWeekend: Quiz + review\n\nTotal: ~24 hours. You've got this! 💪",
-  },
-  quiz: {
-    mood: 'encouraging',
-    text: "Quiz time! 🎯 Let's test your PyTorch knowledge.\n\n**Question 1:** What is a tensor in PyTorch?\na) A Python dictionary\nb) A multi-dimensional array with gradient tracking\nc) A type of neural network\nd) A loss function\n\nType a, b, c, or d!",
-  },
-  resources: {
-    mood: 'talking',
-    text: "Best FREE resources for MLOps matched to your level:\n\n🎯 **MLOps Zoomcamp** — DataTalks.Club, 10 weeks, free\n🎯 **Full Stack Deep Learning** — covers deployment + CI/CD\n🎯 **Made With ML** — practical MLOps with FastAPI\n\nStart with MLOps Zoomcamp — most structured. Want a schedule?",
-  },
-  time: {
-    mood: 'encouraging',
-    text: "Based on your roadmap — 6 modules left, ~14 weeks of content.\n\n**1hr/day** → job ready in ~4 months\n**2hrs/day** → job ready in ~2 months\n\nYou already have Python, SQL, Data Analysis — that's 60% of what ML roles test. You're closer than you think! 🚀",
-  },
-}
-
-function getMockResponse(text: string): { text: string; mood: Mood } {
-  const lower = text.toLowerCase()
-  if (lower.includes('plan') || lower.includes('weekly') || lower.includes('schedule')) return mockResponses.plan
-  if (lower.includes('quiz') || lower.includes('test')) return mockResponses.quiz
-  if (lower.includes('resource') || lower.includes('free') || lower.includes('find')) return mockResponses.resources
-  if (lower.includes('long') || lower.includes('ready') || lower.includes('time')) return mockResponses.time
-  return mockResponses.default
-}
-
 export default function Chat() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -99,13 +67,11 @@ export default function Chat() {
   const chatIdRef = useRef<string | null>(searchParams.get('id'))
   const firstName = user?.displayName?.split(' ')[0] || 'there'
 
-  // Load existing chat or start new one
   useEffect(() => {
     async function init() {
       if (!user) return
 
       if (chatIdRef.current) {
-        // Load existing chat from Firestore
         try {
           const msgsRef = collection(db, 'users', user.uid, 'chats', chatIdRef.current, 'messages')
           const q = query(msgsRef, orderBy('timestamp', 'asc'))
@@ -121,27 +87,28 @@ export default function Chat() {
           console.error('Failed to load chat:', e)
         }
       } else {
-        // New chat — create Firestore doc
         const chatRef = await addDoc(
           collection(db, 'users', user.uid, 'chats'),
-          {
-            title: 'New chat',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          }
+          { title: 'New chat', createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
         )
         chatIdRef.current = chatRef.id
 
-        // Save + show Kira intro message
-        const introText = `Hey ${firstName}! 👋 I'm Kira — your AI learning guide. I know you're targeting ML Engineer and you've got 12 skills already covered.\n\nYou have 9 gaps to close. Want me to build you a weekly study plan? Or I can find resources for any skill, quiz you, or just chat about your career. What's on your mind?`
+        // Load analysis context for personalised intro
+        const analysisResult = JSON.parse(sessionStorage.getItem('analysisResult') || '{}')
+        const targetRole = analysisResult.targetRole || 'your target role'
+        const gapCount = analysisResult.gapSkills?.length || 0
+        const matchScore = analysisResult.matchScore || 0
+
+        const introText = matchScore > 0
+          ? `Hey ${firstName}! 👋 I'm Kira — your AI learning guide.\n\nI can see you're targeting **${targetRole}** and you're **${matchScore}% there**. You have **${gapCount} skill gaps** to close. I know exactly what you need to learn and in what order.\n\nAsk me anything — I can make a weekly plan, find resources, quiz you, or explain any concept. What's on your mind?`
+          : `Hey ${firstName}! 👋 I'm Kira — your AI learning guide.\n\nI'm here to help you close skill gaps, build your roadmap, and guide you every step of the way. Run an analysis first so I can personalise my advice for you — or just ask me anything to get started!\n\nWhat's on your mind?`
+
         const msgRef = await addDoc(
           collection(db, 'users', user.uid, 'chats', chatRef.id, 'messages'),
           { role: 'kira', text: introText, timestamp: serverTimestamp() }
         )
         setMessages([{
-          id: msgRef.id,
-          role: 'kira',
-          text: introText,
+          id: msgRef.id, role: 'kira', text: introText,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         }])
       }
@@ -165,7 +132,6 @@ export default function Chat() {
       collection(db, 'users', user.uid, 'chats', chatIdRef.current, 'messages'),
       { role, text, timestamp: serverTimestamp() }
     )
-    // Update chat title from first user message
     if (role === 'user' && messages.filter(m => m.role === 'user').length === 0) {
       await setDoc(
         doc(db, 'users', user.uid, 'chats', chatIdRef.current),
@@ -190,20 +156,85 @@ export default function Chat() {
     setIsTyping(true)
     setMood('thinking')
 
-    await new Promise(r => setTimeout(r, 1600 + Math.random() * 800))
+    try {
+      // Get real analysis context from sessionStorage
+      const analysisResult = JSON.parse(sessionStorage.getItem('analysisResult') || '{}')
 
-    const response = getMockResponse(text)
-    setIsTyping(false)
-    setMood(response.mood)
+      const body = {
+        message: text.trim(),
+        user_context: {
+          firstName:     firstName,
+          targetRole:    analysisResult.targetRole    || 'ML Engineer',
+          matchScore:    analysisResult.matchScore    || 0,
+          matchedSkills: analysisResult.matchedSkills || [],
+          gapSkills:     analysisResult.gapSkills     || [],
+        },
+        chat_history: messages.slice(-10).map(m => ({
+          role: m.role, text: m.text,
+        })),
+      }
 
-    const kiraMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'kira', text: response.text, time: nowTime(),
+      const res = await fetch('http://localhost:8000/chat', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      })
+
+      if (!res.ok) throw new Error(`Chat failed: ${res.status}`)
+
+      setIsTyping(false)
+      setMood('talking')
+
+      // Create empty kira message to stream into
+      const kiraId = (Date.now() + 1).toString()
+      setMessages(prev => [...prev, {
+        id: kiraId, role: 'kira', text: '', time: nowTime(),
+      }])
+
+      // Stream tokens
+      const reader  = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let fullText  = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        fullText   += chunk
+        setMessages(prev => prev.map(m =>
+          m.id === kiraId ? { ...m, text: fullText } : m
+        ))
+        // Auto scroll as text streams in
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }
+
+      // Save complete response to Firestore
+      await saveMessage('kira', fullText)
+
+      // Set mood based on response content
+      const lower = fullText.toLowerCase()
+      if (lower.includes('quiz') || lower.includes('question')) {
+        setMood('encouraging')
+      } else if (lower.includes('great') || lower.includes('amazing') || lower.includes('perfect')) {
+        setMood('happy')
+      } else {
+        setMood('idle')
+      }
+
+      setTimeout(() => setMood('idle'), 4000)
+
+    } catch (e: any) {
+      console.error('Chat error:', e)
+      setIsTyping(false)
+      setMood('idle')
+      const errMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'kira',
+        text: "Sorry, I'm having trouble connecting right now 🦊 Make sure the backend is running at localhost:8000 and try again!",
+        time: nowTime(),
+      }
+      setMessages(prev => [...prev, errMsg])
     }
-    setMessages(prev => [...prev, kiraMsg])
-    await saveMessage('kira', response.text)
-
-    setTimeout(() => setMood('idle'), 4000)
   }
 
   function formatText(text: string) {
@@ -268,7 +299,13 @@ export default function Chat() {
           <div style={{ position: 'absolute', width: 330, height: 330, borderRadius: '50%', border: '1px solid rgba(139,92,246,0.08)', animation: 'ringPulse 3s 1.2s ease-in-out infinite' }} />
           <div style={{
             position: 'absolute', width: 250, height: 250, borderRadius: '50%',
-            background: `radial-gradient(circle,${mood === 'happy' ? 'rgba(52,211,153,0.2)' : mood === 'thinking' ? 'rgba(6,182,212,0.15)' : mood === 'encouraging' ? 'rgba(239,68,68,0.15)' : mood === 'talking' ? 'rgba(245,158,11,0.15)' : 'rgba(124,58,237,0.18)'} 0%,transparent 70%)`,
+            background: `radial-gradient(circle,${
+              mood === 'happy' ? 'rgba(52,211,153,0.2)' :
+              mood === 'thinking' ? 'rgba(6,182,212,0.15)' :
+              mood === 'encouraging' ? 'rgba(239,68,68,0.15)' :
+              mood === 'talking' ? 'rgba(245,158,11,0.15)' :
+              'rgba(124,58,237,0.18)'
+            } 0%,transparent 70%)`,
             filter: 'blur(30px)', transition: 'background 0.8s ease',
           }} />
 
@@ -280,7 +317,11 @@ export default function Chat() {
             }}
           >
             <FoxMascot size={200} style={{
-              filter: `drop-shadow(0 0 40px rgba(255,140,0,0.5)) drop-shadow(0 0 80px ${mood === 'happy' ? 'rgba(52,211,153,0.4)' : mood === 'thinking' ? 'rgba(6,182,212,0.4)' : 'rgba(124,58,237,0.3)'})`,
+              filter: `drop-shadow(0 0 40px rgba(255,140,0,0.5)) drop-shadow(0 0 80px ${
+                mood === 'happy' ? 'rgba(52,211,153,0.4)' :
+                mood === 'thinking' ? 'rgba(6,182,212,0.4)' :
+                'rgba(124,58,237,0.3)'
+              })`,
               animation: 'none', transition: 'filter 0.5s ease',
             }} />
           </div>
@@ -331,8 +372,12 @@ export default function Chat() {
                       padding: '13px 16px',
                       borderRadius: msg.role === 'kira' ? '4px 16px 16px 16px' : '16px 4px 16px 16px',
                       fontSize: 14, lineHeight: 1.75, color: '#f8fafc',
-                      background: msg.role === 'kira' ? 'rgba(124,58,237,0.08)' : 'linear-gradient(135deg,rgba(124,58,237,0.22),rgba(6,182,212,0.14))',
-                      border: msg.role === 'kira' ? '1px solid rgba(139,92,246,0.2)' : '1px solid rgba(139,92,246,0.3)',
+                      background: msg.role === 'kira'
+                        ? 'rgba(124,58,237,0.08)'
+                        : 'linear-gradient(135deg,rgba(124,58,237,0.22),rgba(6,182,212,0.14))',
+                      border: msg.role === 'kira'
+                        ? '1px solid rgba(139,92,246,0.2)'
+                        : '1px solid rgba(139,92,246,0.3)',
                     }}
                     dangerouslySetInnerHTML={{ __html: formatText(msg.text) }}
                   />
@@ -356,7 +401,10 @@ export default function Chat() {
           {/* Suggestions */}
           <div style={{ padding: '0 20px 10px', display: 'flex', gap: 8, overflowX: 'auto', flexShrink: 0 }}>
             {suggestions.map(s => (
-              <div key={s} onClick={() => send(s)} style={{ padding: '8px 14px', background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 20, fontSize: 12, color: '#94a3b8', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', flexShrink: 0 }}
+              <div
+                key={s}
+                onClick={() => send(s)}
+                style={{ padding: '8px 14px', background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 20, fontSize: 12, color: '#94a3b8', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', flexShrink: 0 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(139,92,246,0.4)'; (e.currentTarget as HTMLElement).style.color = '#f8fafc' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(139,92,246,0.15)'; (e.currentTarget as HTMLElement).style.color = '#94a3b8' }}
               >{s}</div>

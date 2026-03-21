@@ -33,18 +33,16 @@ export default function Upload() {
   }
 
   async function handleAnalyze() {
-  // Convert file to base64 and store in sessionStorage
-    if (resumeFile) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        sessionStorage.setItem('resumeFileData', reader.result as string)
-        sessionStorage.setItem('resumeName', resumeFile.name)
-        sessionStorage.setItem('jdText', jdText)
-        navigate('/processing')
-      }
-      reader.readAsDataURL(resumeFile)
-    }
+  if (!resumeFile) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    sessionStorage.setItem('resumeFileData', reader.result as string)
+    sessionStorage.setItem('resumeName', resumeFile.name)
+    sessionStorage.setItem('jdText', jdText)
+    navigate('/processing')
   }
+  reader.readAsDataURL(resumeFile)
+}
 
   const canNext =
     (step === 0 && resumeFile !== null) ||

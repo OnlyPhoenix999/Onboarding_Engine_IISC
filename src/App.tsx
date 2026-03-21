@@ -3,11 +3,11 @@ import Landing from './pages/Landing.tsx'
 import Upload from './pages/Upload.tsx'
 import Processing from './pages/Processing.tsx'
 import SkillGap from './pages/SkillGap.tsx'
-import Roadmap3D from './pages/Roadmap3D.tsx'
 import Dashboard from './pages/Dashboard.tsx'
 import ProtectedRoute from './components/ProtectedRoute.tsx'
 import Chat from './pages/Chat.tsx'
 import History from './pages/History.tsx'
+import Roadmap from './pages/RoadMap.tsx'
 
 function App() {
   return (
@@ -27,7 +27,7 @@ function App() {
           <ProtectedRoute><SkillGap /></ProtectedRoute>
         } />
         <Route path="/roadmap" element={
-          <ProtectedRoute><Roadmap3D /></ProtectedRoute>
+          <ProtectedRoute><Roadmap /></ProtectedRoute>
         } />
         <Route path="/chat" element={
           <ProtectedRoute><Chat /></ProtectedRoute>
